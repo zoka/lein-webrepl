@@ -1,6 +1,7 @@
 # lein-webrepl
 
-A Leiningen plugin that provides browser based nREPL interface
+A Leiningen plugin that provides browser based nREPL interface, based on
+[ringMon](https://github.com/zoka/ringMon).
 
 ## Installation
 
@@ -8,7 +9,7 @@ This plugin is only supported for Leiningen v 2.0 projects
 running Clojure v 1.3.0 and above.
 
 Put `[lein-webrepl "0.1.0-SNAPSHOT"]` into the `:plugins` vector of your
-`:user` profile in `~/.lein/profiles.clj` for exasmple:
+`:user` profile in `~/.lein/profiles.clj` for example:
 
 ```clojure
 {:user {:plugins [[lein-clojars "0.8.0"]
@@ -20,7 +21,7 @@ Put `[lein-webrepl "0.1.0-SNAPSHOT"]` into the `:plugins` vector of your
 ## Usage
 
 This plugin works both on a project level and standalone 
-(outside of a project folder).
+(outside of a project folder).  
 
 ```bash
     $ lein webrepl
