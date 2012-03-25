@@ -1,44 +1,41 @@
 (ns leiningen.webrepl
   (:require
-            [ringmon.server      :as server]
-            [clojure.string      :as string]
-            [leiningen.core.eval :as eval]
-            [leiningen.core.project :as project]
-            [leiningen.core.main :as main]))
+    [ringmon.server         :as server]
+    [clojure.string         :as string]
+    [leiningen.core.eval    :as eval]
+    [leiningen.core.project :as project]
+    [leiningen.core.main    :as main]))
 
-"This plugin will only work with Lein v2.0"
-
-(def profile {:dependencies '[[ringmon "0.1.2-SNAPSHOT"]
-                              [lein-webrepl "0.1.0-SNAPSHOT"]
-                              [ring/ring-jetty-adapter "1.0.1"]]})
+"This plugin will only work with Lein v2.0 and Clojure 1.3.0 and above"
 
 (defn- repl-port
+ "Try to fin out preconfigured server port value."
   [project]
   (Integer. (or (System/getenv "LEIN_REPL_PORT")
                 (:repl-port project)
                 -1))) ; return -1 if no port is preconfigured
 
 (defn- make-srv-cfg
+ "Take in port 'p' and no browser option 'nb' and
+  return the ringMon configuration map. Both p and nb can be nil."
   [p nb]
   (if p
     (if-not nb
-      {:port p :local-repl true}
-      {:port p })
+      {:port p :local-repl true :lein-webrepl true}
+      {:port p :lein-webrepl true})
     (if-not nb
-      {:local-repl true}
-      {})))
+      {:local-repl true :lein-webrepl true }
+      {:lein-webrepl true})))
 
 (defn- add-webrepl-dep [project]
+ "Add lein-webrepl dependency to the project, if not already there."
   (if (some #(= 'lein-webrepl (first %)) (:dependencies project))
     project
     (update-in project [:dependencies] conj ['lein-webrepl "0.1.0-SNAPSHOT"])))
 
-(defn start-ringmon-server
-  [cfg-map]
-  (server/start cfg-map))
-
 (defn- version-satisfies?
- "From leiningen.core.main."
+ "From leiningen.core.main.
+  Check if v1 satisfies v2"
   [v1 v2]
   (let [v1 (map #(Integer. %) (re-seq #"\d+" (first (string/split v1 #"-" 2))))
         v2 (map #(Integer. %) (re-seq #"\d+" (first (string/split v2 #"-" 2))))]
@@ -58,31 +55,58 @@
   (let [v (second dependency)]
     (when-not (version-satisfies? v min-version)
       (main/abort (format min-version-error min-version v)))
-    project)) ; pass through
+    project)) ; Ok, pass through
 
 (defn- add-clojure130-dep [project]
+ "Check the Clojure version project is using
+  and abort for Clojure versions prior to 1.3.0. When no Clojure
+  version is specified (possibly a generic library), add the
+  1.3.0 dependency."
   (let [deps    (:dependencies project)
         clj-dep (first (filter #(= 'org.clojure/clojure (first %)) deps))]
     (if clj-dep
       (enforce-version project clj-dep "1.3.0")
-      ; if the project did not specify Clojure dependency
-      ; insert the 1.3.0 and hope for the best
+      ; If the project did not specify Clojure dependency
+      ; insert the 1.3.0 and hope for the best.
       (update-in project [:dependencies] conj ['org.clojure/clojure "1.3.0"]))))
 
+(defn start-ringmon-server
+ "A Jetty instance with nREPL server behind AJAX uri (/ringmon/command/)
+  will be started on appropriate port, with or
+  without browser window poping out."
+  [cfg-map]
+  (server/start cfg-map))
+
 (defn- start-server
+ "Start the ringMon nREPL server."
   [project port no-browser]
   (let [conf (make-srv-cfg port no-browser)]
-    (println "Starting with conf:" conf)
+    (println "[lein-webrepl] starting with:" conf)
     (if project
       (eval/eval-in-project
         (-> project (add-clojure130-dep)
                     (add-webrepl-dep))
-       ;`(start-ringmon-server conf)  ; this does not work
-        `(start-ringmon-server {:local-repl true}) ; this works fine (hardcoded map parameter)
+        ; Mystery:
+        ; this does not work - conf is claimed to be invalid var reference.
+        ;    ||                It seems that conf local variable can not
+        ;    \/                be passed into project execution environment.
+        ;`(start-ringmon-server conf)
+
+        ; this works fine (hardcoded map parameter
+        ;    ||            starting server on port 8888 with browser activated)
+        ;    \/
+        `(start-ringmon-server {:local-repl true :lein-webrepl true})
         '(require 'leiningen.webrepl))
       (start-ringmon-server conf)))) ; outside of a project, always woks fine
 
+(defn- numeric?
+ "Check if string contains a number."
+  [s]
+  (re-matches (re-pattern "\\d+") s))
+
 (defn- forever
+ "Prevent process from exiting. Should it be possible to
+  use Leiningen's *exit-process?* binding instead?"
   []
   (while true
    (Thread/sleep Long/MAX_VALUE)))
@@ -91,41 +115,49 @@
  "Start a web repl session with the current project or standalone.
 
 USAGE: lein web-repl [-n] [port] | [port] [-n]
-This will launch an nREPL server behind the freshly started Jetty instance,
-and then it will open your default browser fresh window and make it
-connect to the page containing the REPL user interface. The port value
-the Jetty is runnig on will be taken from command line if supplied.
-The LEIN_REPL_PORT environment variable is checked next, then the value
-for the :repl-port key in project.clj, and finally it will default to 8888.
-If port value is set to zero value, it is chosen randomly.
-If option -n is supplied, no browser window will be opened.
-You need this when application is running on a remote host or when you already
-have a browser window awaiting connection from a previous run.The port and
-option can be supplied in any order or not at all.
+This will launch an nREPL server behind the freshly started Jetty
+instance and then open a fresh window of your default browser, connecting it
+to the page featuring the nREPL front end.
+The port value the Jetty is started on will be taken from command line,
+if supplied. The LEIN_REPL_PORT environment variable is checked next,
+then the value for the :repl-port key in project.clj, and finally it
+will default to 8888. If port value is set to be zero, it is chosen randomly.
+If option -n is supplied, no browser window will be opened. This is needed
+when application is running on a remote host or when there is already
+a browser window awaiting connection from the previous run.
+For the time being (hopefully not for long) only one session
+is supported per browser/per client computer, so if you have 2 or more windows
+within the web browser connected to the same server, nREPL output will
+be randomly sprinkled accros all of them. The workaround is to use
+another browser type side by side (tested on Chrome, Firefox and Safari).
 If you run this command inside of a project, it will be run in
 the context of that classpath. If the command is run outside of a
 project, it'll be standalone and the classpath will be that of Leiningen."
-  ([] (webrepl nil))
-  ([project]
-    (let [port (repl-port project)]
-      (if (= port -1)
-        (start-server project nil  nil)
-        (start-server project port nil))
-      (forever)))
-  ([project p1 & p2]
-      (if (re-matches (re-pattern "\\d+") p1)
-        (let [port (Integer. p1)
-          p2   (first p2)]
-          (if p2
-            (if (= p2 "-n")
-              (start-server project port true)
-              (main/abort "Unrecognized option:" p2))
-            (start-server project port false)))
-        (let [port? (first p2)]
-          (if (= p1 "-n")
-            (if (and port? (re-matches (re-pattern "\\d+") port?))
-              (start-server project (Integer. port?) true)
-              (start-server project nil true))
-            ((main/abort "Unrecognized option:" p1)))))
-      (forever)))
+
+ ([]
+  (webrepl nil))
+
+ ([project]
+  (let [port (repl-port project)]
+    (if (= port -1)
+      (start-server project nil  nil)    ; use default port
+      (start-server project port nil))   ; use preconfigured port
+    (forever)))
+
+ ([project p1 & p2]
+  (if (numeric? p1)
+    (let [port (Integer. p1)
+      p2   (first p2)]
+      (if p2
+        (if (= p2 "-n")
+          (start-server project port true)
+          (main/abort "Unrecognized option:" p2))
+        (start-server project port false)))
+    (let [port? (first p2)]
+      (if (= p1 "-n")
+        (if (and port? (numeric? port?))
+          (start-server project (Integer. port?) true)
+          (start-server project nil true))
+        ((main/abort "Unrecognized option:" p1)))))
+  (forever)))
 
