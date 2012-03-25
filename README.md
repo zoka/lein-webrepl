@@ -24,12 +24,12 @@ This plugin works both on a project level and standalone
 (outside of a project folder).  
 
 ```bash
-    $ lein webrepl
+    $ lein2 webrepl
 ```
 To get usage help enter this:
 
 ```bash
-    $ lein help webrepl
+    $ lein2 help webrepl
 ```
 
 and you will get 
