@@ -33,7 +33,7 @@ To get usage help enter this:
 
 and you will get 
 
-```bash
+```
  Start a web repl session with the current project or standalone.
 
 USAGE: lein web-repl [-n] [port] | [port] [-n]
