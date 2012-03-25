@@ -1,13 +1,12 @@
 (ns leiningen.webrepl
   (:require
-    ;clojure.main
             [ringmon.server      :as server]
             [clojure.string      :as string]
             [leiningen.core.eval :as eval]
             [leiningen.core.project :as project]
-  ;          [leiningen.core.classpath :as classpath]
             [leiningen.core.main :as main]))
 
+"This plugin will only work with Lein v2.0"
 
 (def profile {:dependencies '[[ringmon "0.1.2-SNAPSHOT"]
                               [lein-webrepl "0.1.0-SNAPSHOT"]
@@ -29,21 +28,6 @@
       {:local-repl true}
       {})))
 
-(defn- eval-in-project
- "Support eval-in-project in both Leiningen 1.x and 2.x.
-  From leiningen.swank."
-  [project form init]
-  (let [[eip two?] (or (try (require 'leiningen.core.eval)
-                            [(resolve 'leiningen.core.eval/eval-in-project)
-                             true]
-                            (catch java.io.FileNotFoundException _))
-                       (try (require 'leiningen.compile)
-                            [(resolve 'leiningen.compile/eval-in-project)]
-                            (catch java.io.FileNotFoundException _)))]
-    (if two?
-      (eip project form init)
-      (eip project form nil nil init))))
-
 (defn- add-webrepl-dep [project]
   (if (some #(= 'lein-webrepl (first %)) (:dependencies project))
     project
@@ -52,9 +36,6 @@
 (defn start-ringmon-server
   [cfg-map]
   (server/start cfg-map))
-
-(def ^:private min-version-error
-  "Abort: This plugin requires Clojure %s, but your project is using %s")
 
 (defn- version-satisfies?
  "From leiningen.core.main."
@@ -67,6 +48,9 @@
             (= seg1 seg2) (recur (rest versions) (first (rest versions)))
             (> seg1 seg2) true
             (< seg1 seg2) false))))
+
+(def ^:private min-version-error
+  "Abort: This plugin requires Clojure %s, but your project is using %s")
 
 (defn- enforce-version
  "Abort if dependency version does not satisfy min-version."
@@ -88,13 +72,15 @@
 (defn- start-server
   [project port no-browser]
   (let [conf (make-srv-cfg port no-browser)]
+    (println "Starting with conf:" conf)
     (if project
       (eval/eval-in-project
-        (-> project (add-webrepl-dep)
-                    (add-clojure130-dep))
-        `(do (start-ringmon-server conf))
+        (-> project (add-clojure130-dep)
+                    (add-webrepl-dep))
+       ;`(start-ringmon-server conf)  ; this does not work
+        `(start-ringmon-server {:local-repl true}) ; this works fine (hardcoded map parameter)
         '(require 'leiningen.webrepl))
-      (start-ringmon-server conf)))) ; outside of project
+      (start-ringmon-server conf)))) ; outside of a project, always woks fine
 
 (defn- forever
   []
@@ -102,19 +88,20 @@
    (Thread/sleep Long/MAX_VALUE)))
 
 (defn ^:no-project-needed webrepl
-  "Start a web repl session either with the current project or standalone.
+ "Start a web repl session with the current project or standalone.
 
 USAGE: lein web-repl [-n] [port] | [port] [-n]
 This will launch an nREPL server behind the freshly started Jetty instance,
-and then it will launch your default browser and make it connect to the page
-containing the REPL user interface. The port value the Jetty is runnig on
-will be taken from command line if supplied. The LEIN_REPL_PORT environment
-variable is checked next, then the value of the :repl-port key in project.clj
-and finally it will default to 8888. If port value is set to zero value,
-it is chosen randomly. If option -n is supplied, no browser will be launched.
+and then it will open your default browser fresh window and make it
+connect to the page containing the REPL user interface. The port value
+the Jetty is runnig on will be taken from command line if supplied.
+The LEIN_REPL_PORT environment variable is checked next, then the value
+for the :repl-port key in project.clj, and finally it will default to 8888.
+If port value is set to zero value, it is chosen randomly.
+If option -n is supplied, no browser window will be opened.
 You need this when application is running on a remote host or when you already
 have a browser window awaiting connection from a previous run.The port and
-option can be supplied in any order.
+option can be supplied in any order or not at all.
 If you run this command inside of a project, it will be run in
 the context of that classpath. If the command is run outside of a
 project, it'll be standalone and the classpath will be that of Leiningen."

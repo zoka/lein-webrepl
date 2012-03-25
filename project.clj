@@ -9,5 +9,4 @@
                  [ringmon "0.1.2-SNAPSHOT"]
                  [leiningen-core "2.0.0-SNAPSHOT"]]
 
-  ;:eval-in-leiningen  true
-  )
+  :eval-in-leiningen  true)
