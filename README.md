@@ -8,7 +8,7 @@ This plugin is only supported for Leiningen v 2.0 projects
 running Clojure v 1.3.0 and above.
 
 Put `[lein-webrepl "0.1.0-SNAPSHOT"]` into the `:plugins` vector of your
-`:user` profile in `~/.lein/profiles.clj` for exasmplr:
+`:user` profile in `~/.lein/profiles.clj` for exasmple:
 
 ```clojure
 {:user {:plugins [[lein-clojars "0.8.0"]
