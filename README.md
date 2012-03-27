@@ -35,12 +35,13 @@ To get usage help enter this:
 and you will get
 
 ```
-Start a web repl session with the current project or standalone.
+Start a web REPL session with the current project or standalone.
 
 USAGE: lein web-repl [-n] [port] | [port] [-n]
 This will launch an nREPL server behind the freshly started Jetty
 instance and then open a fresh window of your default browser, connecting it
 to the page featuring the nREPL front end.
+
 The port value the Jetty is started on will be taken from command line,
 if supplied. The LEIN_REPL_PORT environment variable is checked next,
 then the value for the :repl-port key in project.clj, and finally it
@@ -53,15 +54,17 @@ is supported per browser/per client computer, so if you have 2 or more windows
 within the web browser connected to the same server, nREPL output will
 be randomly sprinkled accros all of them. The workaround is to use
 another browser type side by side (tested on Chrome, Firefox and Safari).
-If you run this command inside of a project, it will be run in
-the context of that classpath. If the command is run outside of a
-project, it'll be standalone and the classpath will be that of Leiningen.
-```
 
-Note: For the time being the plugin is not able to accept
-port value and browser activation option when invoked within a
-project - it will always start at port `8888` with browser on, which is
-hopefully a reasonable default. Standalone mode does not have this restriction.
+Note that REPL sessions are persistent - if you disconnect the browser for a
+while and then load the REPL page again, all buffered session output
+will be displayed in the output window.
+
+If you run this command inside of a project, it will be run in
+the context of that classpath and it will activate namespaces specified
+by :main and :repl-init keys in project.clj when REPL session is established.
+If the command is run outside of a project, it'll be standalone and the
+classpath will be that of Leiningen.
+```
 
 ## License
 

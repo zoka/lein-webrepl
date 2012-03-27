@@ -16,16 +16,31 @@
                 -1))) ; return -1 if no port is preconfigured
 
 (defn- make-srv-cfg
- "Take in port 'p' and no browser option 'nb' and
-  return the ringMon configuration map. Both p and nb can be nil."
-  [p nb]
-  (if p
-    (if-not nb
-      {:port p :local-repl true :lein-webrepl true}
-      {:port p :lein-webrepl true})
-    (if-not nb
-      {:local-repl true :lein-webrepl true }
-      {:lein-webrepl true})))
+ "Take in 'project', 'port' and 'no-browser' and return
+ the ringMon configuration map. Both 'port' and 'no-browser' can be nil.
+ The :main and :repl-init keys are normally picked up ringMon's side
+ from the project.clj actual file. However, here we do have a
+ dynamic Leiningen project reference 'project' that may or may not
+ have the same values for those 2 keys of interest for REPL operation,
+ so just to be on the safe side, make sure that their values are
+ propagated into the project runtime using the :lein-webrepl configuration key.
+ Non-nil value for this key informs ringMon that it has been started by
+ this plugin. Note that namespace vaules need to be 'sanitized'
+ into strings before they are passed over to avoid class not found exceptions
+ in the project's classpath context. ringMon is setting up
+ the namespaces referred to by these 2 keys by executing on the fly
+ generated function named 'repl-setup' when a new session is created."
+  [project port no-browser]
+  (let [proj-opts          (select-keys project [:main :repl-init])
+        proj-opts-strings  (into {} (for [[k v] proj-opts] [k (name v)]))
+        cfg  {:lein-webrepl proj-opts-strings}]
+  (if port
+    (if no-browser
+      (merge cfg {:port port})
+      (merge cfg {:port port :local-repl true}))
+    (if no-browser
+      cfg
+      (merge cfg {:local-repl true})))))
 
 (defn- add-webrepl-dep [project]
  "Add lein-webrepl dependency to the project, if not already there."
@@ -75,49 +90,43 @@
   will be started on appropriate port, with or
   without browser window poping out."
   [cfg-map]
-  (server/start cfg-map))
+  (let [ok (server/start cfg-map)]
+    (when-not ok
+      (main/abort "Could not start ringMon server."))))
+
+(defn- forever
+ "Prevent process from exiting."
+  []
+  (while true
+   (Thread/sleep Long/MAX_VALUE)))
 
 (defn- start-server
  "Start the ringMon nREPL server."
   [project port no-browser]
-  (let [conf (make-srv-cfg port no-browser)]
-    (println "[lein-webrepl] starting with:" conf)
+  (let [conf (make-srv-cfg project port no-browser)]
     (if project
       (eval/eval-in-project
         (-> project (add-clojure130-dep)
                     (add-webrepl-dep))
-        ; Mystery:
-        ; this does not work - conf is claimed to be invalid var reference.
-        ;    ||                It seems that conf local variable can not
-        ;    \/                be passed into project execution environment.
-        ;`(start-ringmon-server conf)
-
-        ; this works fine (hardcoded map parameter
-        ;    ||            starting server on port 8888 with browser activated)
-        ;    \/
-        `(start-ringmon-server {:local-repl true :lein-webrepl true})
+        `(start-ringmon-server ~conf)
         '(require 'leiningen.webrepl))
-      (start-ringmon-server conf)))) ; outside of a project, always woks fine
+      (do
+        (start-ringmon-server conf)
+        (forever)) ))) ; outside of a project
 
 (defn- numeric?
  "Check if string contains a number."
   [s]
   (re-matches (re-pattern "\\d+") s))
 
-(defn- forever
- "Prevent process from exiting. Should it be possible to
-  use Leiningen's *exit-process?* binding instead?"
-  []
-  (while true
-   (Thread/sleep Long/MAX_VALUE)))
-
 (defn ^:no-project-needed webrepl
- "Start a web repl session with the current project or standalone.
+ "Start a web REPL session with the current project or standalone.
 
 USAGE: lein web-repl [-n] [port] | [port] [-n]
 This will launch an nREPL server behind the freshly started Jetty
 instance and then open a fresh window of your default browser, connecting it
 to the page featuring the nREPL front end.
+
 The port value the Jetty is started on will be taken from command line,
 if supplied. The LEIN_REPL_PORT environment variable is checked next,
 then the value for the :repl-port key in project.clj, and finally it
@@ -130,9 +139,16 @@ is supported per browser/per client computer, so if you have 2 or more windows
 within the web browser connected to the same server, nREPL output will
 be randomly sprinkled accros all of them. The workaround is to use
 another browser type side by side (tested on Chrome, Firefox and Safari).
+
+Note that REPL sessions are persistent - if you disconnect the browser for a
+while and then load the REPL page again, all buffered session output
+will be displayed in the output window.
+
 If you run this command inside of a project, it will be run in
-the context of that classpath. If the command is run outside of a
-project, it'll be standalone and the classpath will be that of Leiningen."
+the context of that classpath and it will activate namespaces specified
+by :main and :repl-init keys in project.clj when REPL session is established.
+If the command is run outside of a project, it'll be standalone and the
+classpath will be that of Leiningen."
 
  ([]
   (webrepl nil))
@@ -142,7 +158,7 @@ project, it'll be standalone and the classpath will be that of Leiningen."
     (if (= port -1)
       (start-server project nil  nil)    ; use default port
       (start-server project port nil))   ; use preconfigured port
-    (forever)))
+  ))
 
  ([project p1 & p2]
   (if (numeric? p1)
@@ -157,7 +173,10 @@ project, it'll be standalone and the classpath will be that of Leiningen."
       (if (= p1 "-n")
         (if (and port? (numeric? port?))
           (start-server project (Integer. port?) true)
-          (start-server project nil true))
+          (let [port (repl-port project)]
+            (if (= port -1)
+              (start-server project nil true)
+              (start-server project port true))))
         ((main/abort "Unrecognized option:" p1)))))
-  (forever)))
+  ))
 
