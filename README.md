@@ -37,7 +37,7 @@ and you will get
 ```
 Start a web REPL session with the current project or standalone.
 
-USAGE: lein web-repl [-n] [port] | [port] [-n]
+USAGE: lein2 webrepl [-n] [port] | [port] [-n]
 This will launch an nREPL server behind the freshly started Jetty
 instance and then open a fresh window of your default browser, connecting it
 to the page featuring the nREPL front end.
