@@ -29,15 +29,10 @@
  generated function named 'repl-setup' when a new session is created."
   [project port no-browser]
   (let [proj-opts          (select-keys project [:main :repl-init])
-        proj-opts-strings  (into {} (for [[k v] proj-opts] [k (name v)]))
-        cfg  {:lein-webrepl proj-opts-strings}]
-  (if port
-    (if no-browser
-      (merge cfg {:port port})
-      (merge cfg {:port port :local-repl true}))
-    (if no-browser
-      cfg
-      (merge cfg {:local-repl true})))))
+        proj-opts-strings  (into {} (for [[k v] proj-opts] [k (name v)]))]
+    (merge {:lein-webrepl proj-opts-strings}
+           (if port {:port port})
+           (if no-browser {:local-repl true}))))
 
 (defn- add-ringmon-dep [project]
  "Add lein-webrepl dependency to the project, if not already there."
