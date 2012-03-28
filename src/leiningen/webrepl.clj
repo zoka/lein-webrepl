@@ -3,10 +3,7 @@
     [ringmon.server         :as server]
     [clojure.string         :as string]
     [leiningen.core.eval    :as eval]
-    [leiningen.core.project :as project]
     [leiningen.core.main    :as main]))
-
-"This plugin will only work with Lein v2.0 and Clojure 1.3.0 and above"
 
 (defn- repl-port
  "Try to fin out preconfigured server port value."
@@ -42,77 +39,25 @@
       cfg
       (merge cfg {:local-repl true})))))
 
-(defn- add-webrepl-dep [project]
+(defn- add-ringmon-dep [project]
  "Add lein-webrepl dependency to the project, if not already there."
-  (if (some #(= 'lein-webrepl (first %)) (:dependencies project))
+  (if (some #(= 'ringmon (first %)) (:dependencies project))
     project
-    (update-in project [:dependencies] conj ['lein-webrepl "0.1.0-SNAPSHOT"])))
-
-(defn- version-satisfies?
- "From leiningen.core.main.
-  Check if v1 satisfies v2"
-  [v1 v2]
-  (let [v1 (map #(Integer. %) (re-seq #"\d+" (first (string/split v1 #"-" 2))))
-        v2 (map #(Integer. %) (re-seq #"\d+" (first (string/split v2 #"-" 2))))]
-    (loop [versions (map vector v1 v2)
-           [seg1 seg2] (first versions)]
-      (cond (empty? versions) true
-            (= seg1 seg2) (recur (rest versions) (first (rest versions)))
-            (> seg1 seg2) true
-            (< seg1 seg2) false))))
-
-(def ^:private min-version-error
-  "Abort: This plugin requires Clojure %s, but your project is using %s")
-
-(defn- enforce-version
- "Abort if dependency version does not satisfy min-version."
-  [project dependency min-version]
-  (let [v (second dependency)]
-    (when-not (version-satisfies? v min-version)
-      (main/abort (format min-version-error min-version v)))
-    project)) ; Ok, pass through
-
-(defn- add-clojure130-dep [project]
- "Check the Clojure version project is using
-  and abort for Clojure versions prior to 1.3.0. When no Clojure
-  version is specified (possibly a generic library), add the
-  1.3.0 dependency."
-  (let [deps    (:dependencies project)
-        clj-dep (first (filter #(= 'org.clojure/clojure (first %)) deps))]
-    (if clj-dep
-      (enforce-version project clj-dep "1.3.0")
-      ; If the project did not specify Clojure dependency
-      ; insert the 1.3.0 and hope for the best.
-      (update-in project [:dependencies] conj ['org.clojure/clojure "1.3.0"]))))
-
-(defn start-ringmon-server
- "A Jetty instance with nREPL server behind AJAX uri (/ringmon/command/)
-  will be started on appropriate port, with or
-  without browser window poping out."
-  [cfg-map]
-  (let [ok (server/start cfg-map)]
-    (when-not ok
-      (main/abort "Could not start ringMon server."))))
-
-(defn- forever
- "Prevent process from exiting."
-  []
-  (while true
-   (Thread/sleep Long/MAX_VALUE)))
+    (update-in project [:dependencies] conj ['ringmon "0.1.3-SNAPSHOT"])))
 
 (defn- start-server
  "Start the ringMon nREPL server."
   [project port no-browser]
   (let [conf (make-srv-cfg project port no-browser)]
     (if project
-      (eval/eval-in-project
-        (-> project (add-clojure130-dep)
-                    (add-webrepl-dep))
-        `(start-ringmon-server ~conf)
-        '(require 'leiningen.webrepl))
-      (do
-        (start-ringmon-server conf)
-        (forever)) ))) ; outside of a project
+      (eval/eval-in-project (add-ringmon-dep project)
+                            `(when-not (ringmon.server/start ~conf)
+                               (println "Could not start ringMon server.")
+                               (System/exit 1))
+                            '(require 'ringmon.server))
+      (if (server/start conf) ; outside of a project
+        @(promise) ; block forever
+        (main/abort "Could not start ringMon server.")))))
 
 (defn- numeric?
  "Check if string contains a number."

@@ -5,4 +5,4 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[ring/ring-jetty-adapter "1.0.1"]
                  [ringmon "0.1.3-SNAPSHOT"]]
-  :eval-in-leiningen  true)
+  :eval-in-leiningen true)
