@@ -7,10 +7,10 @@
 
 (defn- repl-port
  "Try to fin out preconfigured server port value."
-  [project]
-  (Integer. (or (System/getenv "LEIN_REPL_PORT")
-                (:repl-port project)
-                -1))) ; return -1 if no port is preconfigured
+ [project]
+ (if-let [port (or (System/getenv "LEIN_REPL_PORT")
+                   (:repl-port project))]
+   (Integer. port)))
 
 (defn- make-srv-cfg
  "Take in 'project', 'port' and 'no-browser' and return
@@ -95,33 +95,22 @@ by :main and :repl-init keys in project.clj when REPL session is established.
 If the command is run outside of a project, it'll be standalone and the
 classpath will be that of Leiningen."
 
- ([]
-  (webrepl nil))
-
  ([project]
-  (let [port (repl-port project)]
-    (if (= port -1)
-      (start-server project nil  nil)    ; use default port
-      (start-server project port nil))   ; use preconfigured port
-  ))
+    (start-server project (repl-port project) nil))
 
- ([project p1 & p2]
-  (if (numeric? p1)
-    (let [port (Integer. p1)
-      p2   (first p2)]
-      (if p2
-        (if (= p2 "-n")
-          (start-server project port true)
-          (main/abort "Unrecognized option:" p2))
-        (start-server project port false)))
-    (let [port? (first p2)]
-      (if (= p1 "-n")
-        (if (and port? (numeric? port?))
-          (start-server project (Integer. port?) true)
-          (let [port (repl-port project)]
-            (if (= port -1)
-              (start-server project nil true)
-              (start-server project port true))))
-        ((main/abort "Unrecognized option:" p1)))))
-  ))
+ ([project p1 & [p2]]
+    (if (numeric? p1)
+      (let [port (Integer. p1)
+            p2   p2]
+        (if p2
+          (if (= p2 "-n")
+            (start-server project port true)
+            (main/abort "Unrecognized option:" p2))
+          (start-server project port false)))
+      (let [port? p2]
+        (if (= p1 "-n")
+          (if (and port? (numeric? port?))
+            (start-server project (Integer. port?) true)
+            (start-server project (repl-port project) true))
+          (main/abort "Unrecognized option:" p1))))))
 
