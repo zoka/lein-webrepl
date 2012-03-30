@@ -17,15 +17,15 @@
  the ringMon configuration map. Both 'port' and 'no-browser' can be nil.
  The :main and :repl-init keys are normally picked up ringMon's side
  from the project.clj actual file. However, lein2 has ability to override
- this with 'with-profile' construct, so those values provided by a 
- 'project' parameter  need to be taken into account and propagated to 
+ this with 'with-profile' construct, so those values provided by a
+ 'project' parameter  need to be taken into account and propagated to
  project runtime using the :lein-webrepl configuration key.
  Non-nil value for this key informs ringMon that it has been started by
  this plugin. Note that namespace vaules need to be 'sanitized'
- into strings before they are passed over to avoid class not 
- found exceptions in the project's classpath context. 
- ringMon is setting up  the namespaces referred to by these 2 keys 
- simply by executing on the fly generated function named 'setup-repl' 
+ into strings before they are passed over to avoid class not
+ found exceptions in the project's classpath context.
+ ringMon is setting up  the namespaces referred to by these 2 keys
+ simply by executing on the fly generated function named 'setup-repl'
  when a new session is being created."
   [project port no-browser]
   (let [proj-opts          (select-keys project [:main :repl-init])
